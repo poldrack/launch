@@ -15,10 +15,11 @@ MAXNODES=171
 
 # set up argument args
 
-def launch_slurm_wrangler(serialcmd='',script_name='',runtime='01:00:00',jobname='launch',projname='',queue='normal',email=False,qsubfile='',keepqsubfile=False,ignoreuser=False,test=False,parser=[],c=[],verbose=0,hold=[],outfile=[],cwd=[], nodes=0,use_hyperthreading=True,procs_per_node=24):
+def launch_slurm_wrangler(serialcmd='',script_name='',runtime='01:00:00',jobname='launch',projname='',queue='normal',email=False,qsubfile='',keepqsubfile=False,ignoreuser=False,test=False,parser=[],c=[],verbose=0,hold=[],outfile=[],cwd=[], nodes=0,use_hyperthreading=True,procs_per_node=None):
 
-    ncores_per_node=24
-
+    ncores_per_node=48
+    if not procs_per_node:
+        procs_per_node=ncores_per_node
     if len(serialcmd)>0:
         print('sorry, serial mode is not currently supported')
         sys.exit(1)
@@ -121,6 +122,7 @@ def launch_slurm_wrangler(serialcmd='',script_name='',runtime='01:00:00',jobname
     if not test:
         process = subprocess.Popen('sbatch %s'%qsubfilepath, shell=True, stdout=subprocess.PIPE)
         for line in process.stdout:
+            line=line.decode('utf-8')
             print(line.strip())
             
             try:
