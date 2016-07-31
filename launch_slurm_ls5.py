@@ -128,8 +128,11 @@ def launch_slurm_ls5 (serialcmd='',script_name='',runtime='01:00:00',jobname='la
         for line in process.stdout:
             print(line.strip())
             
-            if line.find('Submitted batch job')==0:
-                jobid=int(line.strip().split(' ')[3])
+            try:
+                if line.find('Submitted batch job')==0:
+                    jobid=int(line.strip().split(' ')[3])
+            except:
+                pass
         process.wait()
     
     if not keepqsubfile:
