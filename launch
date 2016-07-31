@@ -14,6 +14,12 @@ import socket
 MAXCORES=4104
 STAMPEDE = 'stampede'
 
+loaded_modules=os.environ['LOADEDMODULES']
+
+if not loaded_modules.find('launcher')>-1:
+    print('you must first load the launcher module: module load launcher')
+    sys.exit(0)
+
 # set up argument parser
 
 parser = argparse.ArgumentParser(description='process SLURM job.')
