@@ -8,6 +8,7 @@ import sys,os
 import subprocess
 from tempfile import *
 from launch_slurm_ls5 import launch_slurm_ls5
+from launch_slurm_wrangler import launch_slurm_wrangler
 import socket
 
 MAXCORES=4104
@@ -46,12 +47,18 @@ if len(sys.argv)<2:
 
 if len(command)>0:
     cmd=' '.join(command)
+    print('found serial command:%s'%command)
 else:
     cmd=''
 
 hostname = socket.gethostname()
-
-launch_slurm_ls5(serialcmd=cmd, script_name=args.script_name, runtime=args.runtime,
+if hostname.find('wrangler')>-1:
+    launch_slurm_wrangler(serialcmd=cmd, script_name=args.script_name, runtime=args.runtime,
+                jobname=args.jobname, projname=args.projname, queue=args.queue, email=args.email, qsubfile=args.qsubfile, keepqsubfile=args.keepqsubfile,
+                ignoreuser=args.ignoreuser, test=args.test, parser=parser, c=args, verbose=0,
+                hold=args.hold, outfile=[], cwd=[], nodes=args.nodes, use_hyperthreading=args.use_hyperthreading)
+else:
+    launch_slurm_ls5(serialcmd=cmd, script_name=args.script_name, runtime=args.runtime,
                 jobname=args.jobname, projname=args.projname, queue=args.queue, email=args.email, qsubfile=args.qsubfile, keepqsubfile=args.keepqsubfile,
                 ignoreuser=args.ignoreuser, test=args.test, parser=parser, c=args, verbose=0,
                 hold=args.hold, outfile=[], cwd=[], nodes=args.nodes, use_hyperthreading=args.use_hyperthreading)
