@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+
+# launch script for wrangler
+# deals with both command files for parametric launcher 
+# and with single commands
+
+import argparse
+import sys,os
+from tempfile import *
+import subprocess
+import math
+
+MAXCORES=4104
+MAXNODES=171
+
+# set up argument args
+
+def launch_slurm_wrangler(serialcmd='',script_name='',runtime='01:00:00',jobname='launch',projname='',queue='normal',email=False,qsubfile='',keepqsubfile=False,ignoreuser=False,test=False,parser=[],c=[],verbose=0,hold=[],outfile=[],cwd=[], nodes=0,use_hyperthreading=True,procs_per_node=24):
+
+    ncores_per_node=24
+
+    if len(serialcmd)>0:
+        print('sorry, serial mode is not currently supported')
+        sys.exit(1)
+        parametric=0
+        print('Running serial command: '+cmd)
+        nnodes = 1
+        parenv='1way'
+        queue='serial'
+    elif script_name:
+        parametric=1
+        print('Submitting parametric job file: ' + script_name)
+        try:
+            f=open(script_name,'r')
+        except:
+            print('%s does not exist -e!'%script_name)
+            sys.exit(0)
+        script_cmds=f.readlines()
+        f.close()
+        ncmds=len(script_cmds)
+        if ncmds<procs_per_node:
+            procs_per_node=ncmds
+        print('found %d commands'%ncmds)
+        # need to check for empty lines
+        for s in script_cmds:
+            if s.strip()=='':
+                print('command file contains empty lines - please remove them first')
+                sys.exit()
+        if not nodes:
+            nodes = math.ceil(float(ncmds)/float(ncores_per_node))
+            print('Number of compute nodes not specified - estimating as %d'%nodes)
+    
+        if int(nodes)>MAXNODES:
+            nodes=MAXNODES
+    else:
+        print('ERROR: you must either specify a script name (using -s) or a command to run\n\n')
+        sys.exit()
+    
+    if not qsubfile:
+        qsubfile,qsubfilepath=mkstemp(prefix=jobname+"_",dir='.',suffix='.slurm',text=True)
+        os.close(qsubfile)
+   
+
+    print('Outputting qsub commands to %s'%qsubfilepath)
+    qsubfile=open(qsubfilepath,'w')
+    qsubfile.write('#!/bin/bash\n#\n')
+    qsubfile.write('# SLURM control file automatically created by launch\n')
+    if parametric==1:
+        qsubfile.write('#SBATCH -N %d\n'%int(nodes))
+    else:
+        print('sorry - serial mode is not currently supported')
+        sys.exit(1)
+        #qsubfile.write('# Launching single command: %s\n#\n#\n'%cmd)
+        
+    qsubfile.write('#SBATCH -J %s       # Job Name\n'%jobname)
+    qsubfile.write('#SBATCH -o {0}.o%j # Name of the output file (eg. myMPI.oJobID)\n'.format(jobname))
+    qsubfile.write('#SBATCH -p %s\n'%queue)
+    qsubfile.write('#SBATCH -t %s\n'%runtime)
+    qsubfile.write('#SBATCH -n %d\n'%ncmds)
+
+
+    if type(hold) is str: 
+        qsubfile.write("#SBATCH -d afterok")
+        qsubfile.write(":{0}".format(int(hold)))
+        qsubfile.write('\n')
+
+    if projname != "":
+        qsubfile.write("#SBATCH -A {0}\n".format(projname))
+
+    try:
+        waitfor
+    except:
+        waitfor=None
+    if waitfor:
+        qsubfile.write('#SBATCH -d %d\n'%waitfor)
+
+    
+    qsubfile.write('#----------------\n# Job Submission\n#----------------\n')
+    #qsubfile.write('umask 2\n\n')
+    
+    if not parametric:
+        # currently not supported...
+        qsubfile.write('\n\nset -x                   # Echo commands, use "set echo" with csh\n')
+        qsubfile.write(cmd+'\n')
+    
+    else:
+        #qsubfile.write('module load launcher\n')
+        qsubfile.write('export TACC_LAUNCHER_PPN=%d\n'%procs_per_node)
+        qsubfile.write('export EXECUTABLE=$TACC_LAUNCHER_DIR/init_launcher\n')
+        qsubfile.write('export WORKDIR=.\n')
+        qsubfile.write('export CONTROL_FILE=%s\n'%script_name)
+        qsubfile.write('export TACC_LAUNCHER_SCHED=interleaved\n')
+        qsubfile.write('cd $WORKDIR\n')
+        qsubfile.write('echo " WORKING DIR:   $WORKDIR/"\n')
+        qsubfile.write('$TACC_LAUNCHER_DIR/paramrun SLURM $EXECUTABLE $WORKDIR $CONTROL_FILE\n')  
+        qsubfile.write('echo " "\necho " Parameteric Job Complete"\necho " "\n')
+        
+    qsubfile.close()
+    
+    jobid=None
+    if not test:
+        process = subprocess.Popen('sbatch %s'%qsubfilepath, shell=True, stdout=subprocess.PIPE)
+        for line in process.stdout:
+            print(line.strip())
+            
+            try:
+                if line.find('Submitted batch job')==0:
+                    jobid=int(line.strip().split(' ')[3])
+            except:
+                pass
+        process.wait()
+    
+    if not keepqsubfile:
+        print('Deleting qsubfile: %s'%qsubfilepath)
+        os.remove(qsubfilepath)
+    return jobid
+    
